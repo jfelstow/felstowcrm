@@ -1,7 +1,7 @@
 /* Felstow CRM — front-end logic (vanilla JS + Supabase) */
 
 const STAGES = ['Lead','Contacted','Discovery Call','Proposal Sent','Signed','Onboarding','Active Client','Lost','Dormant'];
-const TYPES  = ['Bookkeeping','Consulting','Cash-flow','Cleanup','Brand Sourcing'];
+const TYPES  = ['Bookkeeping','Bookkeeping & Cash-flow','Consulting','Cash-flow','Cleanup','Brand Sourcing'];
 const SOURCES= ['Referral','Website','Network','Cold outreach'];
 const PRICING= ['Retainer','Hourly','Project'];
 const PROB   = ['Hot','Warm','Cold'];

@@ -15,13 +15,18 @@ button{font-family:inherit;cursor:pointer}
 a{color:var(--navy)}
 .hidden{display:none !important}
 
+/* ── Brand mark (matches felstowbookkeeping.com) ── */
+.logo-name{font-weight:800;font-size:18px;color:var(--navy);letter-spacing:-.01em;line-height:1.15}
+.logo-tag{font-size:10.5px;letter-spacing:.10em;color:var(--grey);text-transform:uppercase;
+  margin-top:4px;font-weight:700}
+.amber-bar{width:54px;height:4px;background:var(--amber);border-radius:2px}
+
 /* ── Login ── */
 #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .login-card{background:var(--bg);border:1px solid var(--hair);border-radius:16px;
-  box-shadow:var(--shadow);padding:32px;width:100%;max-width:380px;text-align:center}
-.brand{font-weight:700;font-size:22px;color:var(--navy);letter-spacing:-.01em}
-.brand span{color:var(--amber)}
-.login-card p{color:var(--grey);font-size:13px;margin:6px 0 22px}
+  box-shadow:var(--shadow);padding:34px 32px;width:100%;max-width:400px;text-align:center}
+.login-card .logo{margin-bottom:14px}
+.login-card .amber-bar{margin:0 auto 22px}
 input,select,textarea{
   width:100%;padding:10px 12px;border:1px solid var(--hair);border-radius:9px;
   font-size:14px;color:var(--ink);background:var(--bg);margin-bottom:10px;font-family:inherit;
@@ -40,13 +45,11 @@ textarea{resize:vertical;min-height:64px}
 .err{color:var(--bad);font-size:12.5px;min-height:16px;margin-top:4px}
 
 /* ── App shell ── */
-header{background:var(--navy);color:#fff;padding:12px 18px;display:flex;
-  align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20}
-header .brand{color:#fff;font-size:17px}
-header .brand span{color:var(--amber)}
-.who{font-size:12.5px;color:var(--faded);display:flex;align-items:center;gap:10px}
-header .btn.ghost{color:#fff;border-color:rgba(255,255,255,.28);background:transparent}
-header .btn.ghost:hover{background:rgba(255,255,255,.1)}
+header{background:var(--bg);color:var(--ink);padding:14px 22px;display:flex;
+  align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20;
+  border-bottom:1px solid var(--hair)}
+header .logo-name{font-size:16px}
+.who{font-size:12.5px;color:var(--grey);display:flex;align-items:center;gap:10px}
 .wrap{max-width:1100px;margin:0 auto;padding:18px}
 
 /* ── Summary cards ── */

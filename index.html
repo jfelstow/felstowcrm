@@ -11,11 +11,14 @@
 <!-- ── Login ── -->
 <section id="login">
   <form class="login-card" id="loginForm">
-    <div class="brand">Felstow <span>CRM</span></div>
-    <p>Bookkeeping &amp; Consulting — client pipeline</p>
+    <div class="logo">
+      <div class="logo-name">Felstow Bookkeeping &amp; Consulting</div>
+      <div class="logo-tag">Client pipeline</div>
+    </div>
+    <div class="amber-bar"></div>
     <input type="email" id="email" placeholder="Email" autocomplete="username" required>
     <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
-    <button class="btn full" type="submit">Sign in</button>
+    <button class="btn amber full" type="submit">Sign in</button>
     <div class="err" id="loginErr"></div>
   </form>
 </section>
@@ -23,7 +26,10 @@
 <!-- ── App ── -->
 <div id="app" class="hidden">
   <header>
-    <div class="brand">Felstow <span>CRM</span></div>
+    <div class="logo">
+      <div class="logo-name">Felstow Bookkeeping &amp; Consulting</div>
+      <div class="logo-tag">Client pipeline</div>
+    </div>
     <div class="who"><span id="whoami"></span>
       <button class="btn ghost sm" id="signout">Sign out</button></div>
   </header>

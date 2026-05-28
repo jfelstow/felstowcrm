@@ -274,6 +274,40 @@ grant select, insert, update, delete
   to authenticated;
 
 -- ─────────────────────────────────────────────────────────────
+-- Financial column protection: contractors must not see or change
+-- pricing_model / monthly_value / probability for their clients.
+-- The view masks them on read; the trigger reverts changes on write.
+-- ─────────────────────────────────────────────────────────────
+create or replace view public.clients_view
+  with (security_invoker = on) as
+select
+  id, name, primary_contact, email, phone, type, source, stage, status,
+  case when public.is_owner() then pricing_model end as pricing_model,
+  case when public.is_owner() then monthly_value end as monthly_value,
+  case when public.is_owner() then probability   end as probability,
+  expected_start, notes, created_by, created_at
+from public.clients;
+
+grant select on public.clients_view to authenticated;
+
+create or replace function public.protect_client_money()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_owner() then
+    new.monthly_value := old.monthly_value;
+    new.pricing_model := old.pricing_model;
+    new.probability   := old.probability;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_protect_client_money on public.clients;
+create trigger trg_protect_client_money
+  before update on public.clients
+  for each row execute function public.protect_client_money();
+
+-- ─────────────────────────────────────────────────────────────
 -- After you create your own login, promote yourself to owner by running:
 --   update public.profiles set role = 'owner' where id = (select id from auth.users where email = 'YOUR_EMAIL');
 -- ─────────────────────────────────────────────────────────────

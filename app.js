@@ -129,6 +129,7 @@ async function onSignedIn(){
   me = { id:user.id, role: prof?.role||'contractor', name: prof?.full_name || user.email };
   $('#whoami').textContent = `${me.name}${me.role==='owner'?' · owner':''}`;
   $('#addClient').classList.toggle('hidden', me.role!=='owner');
+  document.body.classList.toggle('is-contractor', me.role!=='owner');
   $('#login').classList.add('hidden');
   $('#app').classList.remove('hidden');
   // populate stage filter
@@ -138,7 +139,8 @@ async function onSignedIn(){
 
 // ── Data ──────────────────────────────────────────────
 async function loadClients(){
-  const { data, error } = await sb.from('clients').select('*').order('created_at',{ascending:false});
+  // Read through the view, which masks financial columns for non-owners.
+  const { data, error } = await sb.from('clients_view').select('*').order('created_at',{ascending:false});
   if (error){ alert(error.message); return; }
   clients = data || [];
   render();
@@ -174,7 +176,7 @@ function renderPipeline(){
   if (!rows.length){ el.innerHTML = `<div class="empty">No clients yet.${me.role==='owner'?' Click “+ Add client” to start.':''}</div>`; return; }
   el.innerHTML = `<table><thead><tr>
       <th>Client</th><th class="hide-sm">Type</th><th>Stage</th>
-      <th>Status</th><th class="hide-sm">$/mo</th>
+      <th>Status</th><th class="hide-sm money">$/mo</th>
     </tr></thead><tbody>${rows.map(rowHtml).join('')}</tbody></table>`;
   $$('#pipelineView tbody tr').forEach(tr=>tr.onclick=e=>{
     if (e.target.tagName==='SELECT') return;
@@ -189,7 +191,7 @@ function rowHtml(c){
     <td class="hide-sm sub">${esc(c.type||'')}</td>
     <td><select class="stageSel" data-id="${c.id}">${STAGES.map(s=>`<option ${s===c.stage?'selected':''}>${s}</option>`).join('')}</select></td>
     <td>${statusBadge(c.status)}</td>
-    <td class="hide-sm">${c.monthly_value?money(c.monthly_value):'—'}</td>
+    <td class="hide-sm money">${c.monthly_value?money(c.monthly_value):'—'}</td>
   </tr>`;
 }
 
@@ -288,9 +290,9 @@ function detailsTabHtml(c){
       ${fieldSel('Type','type',TYPES,c.type)}
       ${fieldSel('Source','source',SOURCES,c.source)}
       ${fieldSel('Stage','stage',STAGES,c.stage||'Lead',false)}
-      ${fieldSel('Pricing','pricing_model',PRICING,c.pricing_model)}
-      ${fieldTxt('Value / mo','monthly_value',c.monthly_value||'','number')}
-      ${fieldSel('Probability','probability',PROB,c.probability)}
+      ${me.role==='owner' ? fieldSel('Pricing','pricing_model',PRICING,c.pricing_model) : ''}
+      ${me.role==='owner' ? fieldTxt('Value / mo','monthly_value',c.monthly_value||'','number') : ''}
+      ${me.role==='owner' ? fieldSel('Probability','probability',PROB,c.probability) : ''}
       ${fieldTxt('Expected start','expected_start',c.expected_start||'','date')}
     </div>
     <div class="fld"><label>Notes</label><textarea data-k="notes">${esc(c.notes)}</textarea></div>
@@ -395,11 +397,16 @@ function readFields(){
 async function saveClient(){
   const o = readFields();
   if (!o.name){ alert('Business name is required.'); return; }
-  let res;
-  if (openId){ res = await sb.from('clients').update(o).eq('id',openId).select().single(); }
-  else { o.created_by=me.id; res = await sb.from('clients').insert(o).select().single(); }
-  if (res.error){ alert(res.error.message); return; }
-  openId = res.data.id;
+  let err;
+  if (openId){
+    // Avoid select().single() so the response can't leak masked columns back to a contractor.
+    ({ error: err } = await sb.from('clients').update(o).eq('id', openId));
+  } else {
+    o.created_by = me.id;
+    const { data, error } = await sb.from('clients').insert(o).select().single();
+    err = error; if (data) openId = data.id;
+  }
+  if (err){ alert(err.message); return; }
   await loadClients();
   drawClient();
 }

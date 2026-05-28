@@ -1,0 +1,118 @@
+:root{
+  --navy:#1F3A5F; --navy-2:#33517a; --amber:#E0922F; --amber-2:#c97f23;
+  --ink:#23262B; --grey:#6B7280; --faded:#C3CCDA; --hair:#DDE1E7;
+  --bg:#FFFFFF; --bg-soft:#F7F8FA; --good:#2e7d52; --bad:#c0392b;
+  --shadow:0 1px 3px rgba(31,58,95,.08),0 4px 16px rgba(31,58,95,.06);
+}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Helvetica Neue",Arial,system-ui,sans-serif;
+  color:var(--ink);background:var(--bg-soft);
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+button{font-family:inherit;cursor:pointer}
+a{color:var(--navy)}
+.hidden{display:none !important}
+
+/* ── Login ── */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-card{background:var(--bg);border:1px solid var(--hair);border-radius:16px;
+  box-shadow:var(--shadow);padding:32px;width:100%;max-width:380px;text-align:center}
+.brand{font-weight:700;font-size:22px;color:var(--navy);letter-spacing:-.01em}
+.brand span{color:var(--amber)}
+.login-card p{color:var(--grey);font-size:13px;margin:6px 0 22px}
+input,select,textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--hair);border-radius:9px;
+  font-size:14px;color:var(--ink);background:var(--bg);margin-bottom:10px;font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy-2);
+  box-shadow:0 0 0 3px rgba(31,58,95,.12)}
+textarea{resize:vertical;min-height:64px}
+.btn{background:var(--navy);color:#fff;border:none;border-radius:9px;padding:10px 16px;
+  font-size:14px;font-weight:600;transition:background .15s}
+.btn:hover{background:var(--navy-2)}
+.btn.amber{background:var(--amber)}.btn.amber:hover{background:var(--amber-2)}
+.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--hair)}
+.btn.ghost:hover{background:var(--bg-soft)}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+.btn.full{width:100%}
+.err{color:var(--bad);font-size:12.5px;min-height:16px;margin-top:4px}
+
+/* ── App shell ── */
+header{background:var(--navy);color:#fff;padding:12px 18px;display:flex;
+  align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20}
+header .brand{color:#fff;font-size:17px}
+header .brand span{color:var(--amber)}
+.who{font-size:12.5px;color:var(--faded);display:flex;align-items:center;gap:10px}
+.wrap{max-width:1100px;margin:0 auto;padding:18px}
+
+/* ── Summary cards ── */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.card{background:var(--bg);border:1px solid var(--hair);border-radius:13px;padding:14px 16px;box-shadow:var(--shadow)}
+.card .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--grey)}
+.card .val{font-size:24px;font-weight:700;color:var(--navy);margin-top:3px}
+.card.accent .val{color:var(--amber-2)}
+
+/* ── Toolbar ── */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.toolbar .grow{flex:1}
+.toolbar select,.toolbar input{width:auto;margin:0;min-width:130px}
+.tabs{display:flex;gap:4px;background:var(--bg);border:1px solid var(--hair);border-radius:10px;padding:3px}
+.tabs button{border:none;background:transparent;padding:7px 13px;border-radius:8px;font-size:13px;color:var(--grey);font-weight:600}
+.tabs button.on{background:var(--navy);color:#fff}
+
+/* ── Table ── */
+.panel{background:var(--bg);border:1px solid var(--hair);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--grey);
+  padding:11px 14px;border-bottom:1px solid var(--hair);background:var(--bg-soft);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--hair);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--bg-soft)}
+.name-cell{font-weight:600;color:var(--navy)}
+.sub{color:var(--grey);font-size:12px}
+.empty{padding:34px;text-align:center;color:var(--grey)}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.b-prospect{background:#eaf0f8;color:var(--navy)}
+.b-active{background:#e4f3ea;color:var(--good)}
+.b-lost{background:#fbe9e7;color:var(--bad)}
+.b-dormant{background:#eef0f2;color:var(--grey)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.hot{background:#c0392b}.warm{background:#E0922F}.cold{background:#8fa3bf}
+
+/* ── Drawer (detail) ── */
+.scrim{position:fixed;inset:0;background:rgba(31,58,95,.32);z-index:40}
+.drawer{position:fixed;top:0;right:0;height:100%;width:480px;max-width:94vw;background:var(--bg);
+  z-index:50;box-shadow:-8px 0 30px rgba(31,58,95,.18);display:flex;flex-direction:column}
+.drawer header{background:var(--bg);color:var(--ink);border-bottom:1px solid var(--hair);position:static}
+.drawer header .ttl{font-weight:700;color:var(--navy);font-size:17px}
+.drawer .body{padding:18px;overflow-y:auto;flex:1}
+.x{background:transparent;border:none;font-size:22px;color:var(--grey);line-height:1}
+.fld{margin-bottom:11px}
+.fld label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--grey);margin-bottom:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.sec-h{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--grey);
+  margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--hair)}
+.act{border:1px solid var(--hair);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg-soft)}
+.act .top{display:flex;justify-content:space-between;font-size:12px;color:var(--grey);margin-bottom:3px}
+.act .nx{color:var(--amber-2);font-size:12.5px;margin-top:5px}
+.row-btns{display:flex;gap:8px;margin-top:14px}
+
+/* ── Follow-ups list ── */
+.fu{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--hair)}
+.fu:last-child{border-bottom:none}
+.fu .when{font-weight:700;font-size:13px;min-width:92px}
+.fu .when.due{color:var(--bad)}
+.fu .meta{flex:1}
+.fu .meta b{color:var(--navy)}
+
+@media (max-width:760px){
+  .cards{grid-template-columns:1fr 1fr}
+  .grid2{grid-template-columns:1fr}
+  th.hide-sm,td.hide-sm{display:none}
+  .wrap{padding:12px}
+}

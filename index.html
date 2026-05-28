@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Felstow CRM</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ── Login ── -->
+<section id="login">
+  <form class="login-card" id="loginForm">
+    <div class="brand">Felstow <span>CRM</span></div>
+    <p>Bookkeeping &amp; Consulting — client pipeline</p>
+    <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="btn full" type="submit">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</section>
+
+<!-- ── App ── -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand">Felstow <span>CRM</span></div>
+    <div class="who"><span id="whoami"></span>
+      <button class="btn ghost sm" id="signout">Sign out</button></div>
+  </header>
+
+  <div class="wrap">
+    <div class="cards">
+      <div class="card accent"><div class="lbl">Active MRR</div><div class="val" id="mMrr">$0</div></div>
+      <div class="card"><div class="lbl">Pipeline value /mo</div><div class="val" id="mPipe">$0</div></div>
+      <div class="card"><div class="lbl">Follow-ups due</div><div class="val" id="mFu">0</div></div>
+      <div class="card"><div class="lbl">Open prospects</div><div class="val" id="mProsp">0</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="tabs">
+        <button data-view="pipeline" class="on">Pipeline</button>
+        <button data-view="followups">Follow-ups</button>
+      </div>
+      <span class="grow"></span>
+      <select id="fStage"><option value="">All stages</option></select>
+      <select id="fStatus">
+        <option value="">All statuses</option>
+        <option>Prospect</option><option>Active</option><option>Lost</option><option>Dormant</option>
+      </select>
+      <button class="btn amber sm" id="addClient">+ Add client</button>
+    </div>
+
+    <div id="pipelineView" class="panel"></div>
+    <div id="followupsView" class="panel hidden"></div>
+  </div>
+</div>
+
+<!-- ── Detail drawer ── -->
+<div id="scrim" class="scrim hidden"></div>
+<aside id="drawer" class="drawer hidden">
+  <header>
+    <div class="ttl" id="dTitle">Client</div>
+    <button class="x" id="dClose">&times;</button>
+  </header>
+  <div class="body" id="dBody"></div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

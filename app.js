@@ -7,6 +7,90 @@ const PRICING= ['Retainer','Hourly','Project'];
 const PROB   = ['Hot','Warm','Cold'];
 const ACT_TYPES = ['Call','Email','Meeting','Note','Task'];
 
+// ── Onboarding form (mirrors felstowbookkeeping.com/onboarding.html) ──
+const ENTITY_TYPES   = ['Sole Proprietorship','Single-Member LLC','Multi-Member LLC','LLC taxed as S-Corp','S-Corporation','C-Corporation','Partnership','Nonprofit','Not sure'];
+const FISCAL_YEARS   = ['Calendar year (Jan–Dec)','Other / not sure'];
+const CONTACT_PREFS  = ['Email','Text','Phone call','No preference'];
+const PAYROLL_FREQS  = ['Weekly','Bi-weekly','Semi-monthly','Monthly','Other'];
+const PLATFORMS      = ['Stripe','Square','PayPal','Venmo','Cash App','Zelle','Shopify Payments','Apple Pay / Google Pay','ACH (direct bank)','Checks','Cash','Other merchant processor'];
+const HAS_QBO_OPTS   = ['No / not sure','Yes — I have a subscription','Yes — but it’s been unused','I have QuickBooks Desktop (not Online)'];
+const ACCESS_NEEDED  = ['QuickBooks Online','Business bank(s)','Business credit card(s)','Payroll provider','PayPal / Venmo','Stripe / Square / Shopify','Bill.com / AP tool','Receipt app (Dext/Hubdoc/etc.)'];
+const CRED_METHODS   = ['Bitwarden Send','1Password Share','Phone call','In person','Not sure'];
+const BOOKS_STATUS   = ['Up to date — closed through last month','1–3 months behind','3–12 months behind','More than a year behind','Never been set up','Not sure'];
+const SALES_TAX_OPTS = ['No','Yes — one state','Yes — multiple states','Not sure / probably should be'];
+
+// Each field: [key, label, type?, opts?, placeholder?]   (type defaults to 'text')
+const ONBOARDING_SECTIONS = [
+  { title:'01 · Business basics', fields:[
+    ['legal_name','Legal business name'],
+    ['dba','DBA / "doing business as" (if different)'],
+    ['entity_type','Business type','select',ENTITY_TYPES],
+    ['ein','EIN','text',null,'XX-XXXXXXX'],
+    ['state_formed','State of formation'],
+    ['date_started','Date business started','date'],
+    ['fiscal_year','Fiscal year','select',FISCAL_YEARS],
+    ['biz_address','Business address','textarea'],
+    ['industry','Industry / what the business does','textarea'],
+  ]},
+  { title:'02 · Ownership & primary contact', fields:[
+    ['owners','Owner(s) and ownership %','textarea'],
+    ['contact_name','Primary contact name'],
+    ['contact_role','Their role'],
+    ['contact_email','Email','email'],
+    ['contact_phone','Phone'],
+    ['contact_pref','Best way to reach you','select',CONTACT_PREFS],
+  ]},
+  { title:'03 · People & payroll', fields:[
+    ['num_employees','# of W-2 employees','number'],
+    ['num_contractors','# of 1099 contractors','number'],
+    ['payroll_provider','Payroll provider (if any)'],
+    ['payroll_frequency','Payroll frequency','select',PAYROLL_FREQS],
+    ['owner_pay','How do owners take money out?','textarea'],
+  ]},
+  { title:'04 · Bank accounts & credit cards', fields:[
+    ['bank_accounts','Active business bank accounts','textarea'],
+    ['credit_cards','Active business credit cards','textarea'],
+    ['personal_mixing','Personal accounts used for business expenses?','textarea'],
+  ]},
+  { title:'05 · Loans & financing', fields:[
+    ['loans','Active loans & lines of credit','textarea'],
+  ]},
+  { title:'06 · Business assets', fields:[
+    ['vehicles','Business vehicles','textarea'],
+    ['other_assets','Other major assets (last ~3 years)','textarea'],
+  ]},
+  { title:'07 · Payment platforms', fields:[
+    ['platforms','Platforms used (check all)','checks',PLATFORMS],
+    ['venmo_paypal_type','If Venmo/PayPal for business — personal or business account?'],
+  ]},
+  { title:'08 · Software & tools', fields:[
+    ['has_qbo','Do you already have QuickBooks Online?','select',HAS_QBO_OPTS],
+    ['qbo_subscription','QBO subscription level (if known)'],
+    ['other_tools','Other tools you use','textarea'],
+    ['receipts_handling','How do you currently handle receipts?','textarea'],
+  ]},
+  { title:'09 · Access & credentials', fields:[
+    ['access_needed','Logins I’ll eventually need access to','checks',ACCESS_NEEDED],
+    ['cred_method','Preferred way to share credentials','select',CRED_METHODS],
+  ]},
+  { title:'10 · Current state of the books', fields:[
+    ['books_status','How current are your books?','select',BOOKS_STATUS],
+    ['last_reconciled','Approximate last reconciled date'],
+    ['last_tax_return','Most recent tax return filed (year)'],
+    ['has_cpa','Do you have a CPA or tax preparer?'],
+    ['previous_bookkeeper','Previous bookkeeper — what wasn’t working?','textarea'],
+  ]},
+  { title:'11 · Sales tax', fields:[
+    ['sales_tax','Do you collect sales tax?','select',SALES_TAX_OPTS],
+    ['sales_tax_detail','If yes — which states, and who files?','textarea'],
+  ]},
+  { title:'12 · Goals & anything else', fields:[
+    ['top_goals','Top 2–3 things you want out of working together','textarea'],
+    ['pain_points','What hurts the most right now?','textarea'],
+    ['anything_else','Anything else I should know?','textarea'],
+  ]},
+];
+
 // Stage → status auto-derivation
 function statusForStage(stage){
   if (['Signed','Onboarding','Active Client'].includes(stage)) return 'Active';
@@ -161,11 +245,41 @@ function fieldTxt(label,key,val,type='text'){
   return `<div class="fld"><label>${label}</label><input type="${type}" data-k="${key}" value="${esc(val)}"></div>`;
 }
 
+let onbCache = null;
+
 async function drawClient(){
   const c = clients.find(x=>x.id===openId) || {};
   $('#dTitle').textContent = c.name || 'New client';
-  const canEdit = me.role==='owner' || true; // contractors with access can edit; DB enforces real rule
-  $('#dBody').innerHTML = `
+  onbCache = null;
+
+  const tabs = openId ? `
+    <div class="dtabs">
+      <button data-dt="details" class="on">Details</button>
+      <button data-dt="onboarding">Onboarding</button>
+      <button data-dt="activity">Activity</button>
+    </div>` : '';
+
+  $('#dBody').innerHTML = `${tabs}
+    <div id="dtDetails">${detailsTabHtml(c)}</div>
+    <div id="dtOnboarding" class="hidden"></div>
+    <div id="dtActivity" class="hidden"></div>`;
+
+  $('#saveClient').onclick = saveClient;
+  const del = $('#delClient'); if (del) del.onclick = deleteClient;
+  $$('#dBody .dtabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.dt));
+}
+
+function switchTab(t){
+  $$('#dBody .dtabs button').forEach(b=>b.classList.toggle('on', b.dataset.dt===t));
+  $('#dtDetails').classList.toggle('hidden', t!=='details');
+  $('#dtOnboarding').classList.toggle('hidden', t!=='onboarding');
+  $('#dtActivity').classList.toggle('hidden', t!=='activity');
+  if (t==='onboarding' && !onbCache) loadOnboardingTab();
+  if (t==='activity' && !$('#dtActivity').innerHTML.trim()) renderActivityTab();
+}
+
+function detailsTabHtml(c){
+  return `
     ${fieldTxt('Business name','name',c.name)}
     <div class="grid2">
       ${fieldTxt('Primary contact','primary_contact',c.primary_contact)}
@@ -183,7 +297,11 @@ async function drawClient(){
     <div class="row-btns">
       <button class="btn" id="saveClient">Save</button>
       ${openId && me.role==='owner' ? '<button class="btn ghost" id="delClient">Delete</button>' : ''}
-    </div>
+    </div>`;
+}
+
+function renderActivityTab(){
+  $('#dtActivity').innerHTML = `
     <div class="sec-h">Activity</div>
     <div id="actList"><div class="sub">Loading…</div></div>
     <div class="sec-h">Log activity</div>
@@ -194,12 +312,75 @@ async function drawClient(){
       <div class="fld"><label>Next step</label><input data-k="a_next"></div>
       ${fieldTxt('Follow-up date','a_follow','','date')}
     </div>
-    <button class="btn amber" id="addAct">Add activity</button>
-  `;
-  $('#saveClient').onclick = saveClient;
-  const del = $('#delClient'); if (del) del.onclick = deleteClient;
+    <button class="btn amber" id="addAct">Add activity</button>`;
   $('#addAct').onclick = addActivity;
-  if (openId) loadActs();
+  loadActs();
+}
+
+// ── Onboarding ───────────────────────────────────────
+async function loadOnboardingTab(){
+  $('#dtOnboarding').innerHTML = `<div class="sub" style="padding:14px 0">Loading…</div>`;
+  const { data, error } = await sb.from('client_onboarding').select('*').eq('client_id', openId).maybeSingle();
+  if (error){ $('#dtOnboarding').innerHTML = `<div class="sub">${esc(error.message)}</div>`; return; }
+  onbCache = data || { client_id: openId };
+  renderOnboardingTab();
+}
+
+function onbFieldHtml(f, o){
+  const key = f[0], label = f[1], type = f[2] || 'text', opts = f[3] || null, placeholder = f[4] || '';
+  const v = o[key];
+  if (type === 'textarea'){
+    return `<div class="fld"><label>${esc(label)}</label><textarea data-onb="${key}">${esc(v)}</textarea></div>`;
+  }
+  if (type === 'select'){
+    return `<div class="fld"><label>${esc(label)}</label><select data-onb="${key}">
+      <option value=""></option>
+      ${opts.map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}
+    </select></div>`;
+  }
+  if (type === 'checks'){
+    const arr = Array.isArray(v) ? v : [];
+    return `<div class="fld"><label>${esc(label)}</label><div class="checks" data-onb-checks="${key}">
+      ${opts.map(o=>`<label class="chk"><input type="checkbox" value="${esc(o)}" ${arr.includes(o)?'checked':''}> ${esc(o)}</label>`).join('')}
+    </div></div>`;
+  }
+  return `<div class="fld"><label>${esc(label)}</label><input type="${type}" data-onb="${key}" value="${esc(v==null?'':v)}"${placeholder?` placeholder="${esc(placeholder)}"`:''}></div>`;
+}
+
+function renderOnboardingTab(){
+  const o = onbCache || {};
+  const sectionsHtml = ONBOARDING_SECTIONS.map((sec, i) => `
+    <details class="onbSec" ${i===0?'open':''}>
+      <summary>${esc(sec.title)}</summary>
+      <div class="onbBody">${sec.fields.map(f=>onbFieldHtml(f,o)).join('')}</div>
+    </details>`).join('');
+  $('#dtOnboarding').innerHTML = `
+    <div class="onb">${sectionsHtml}</div>
+    <div class="row-btns">
+      <button class="btn amber" id="saveOnb">Save onboarding</button>
+      <span class="sub" id="onbStatus"></span>
+    </div>`;
+  $('#saveOnb').onclick = saveOnboarding;
+}
+
+async function saveOnboarding(){
+  const row = { client_id: openId, updated_by: me.id, updated_at: new Date().toISOString() };
+  $$('#dtOnboarding [data-onb]').forEach(f => {
+    let v = f.value;
+    if (f.type === 'number') v = v === '' ? null : Number(v);
+    if (f.type === 'date')   v = v || null;
+    row[f.dataset.onb] = (v === '' ? null : v);
+  });
+  $$('#dtOnboarding [data-onb-checks]').forEach(grp => {
+    const vals = [...grp.querySelectorAll('input:checked')].map(i => i.value);
+    row[grp.dataset.onbChecks] = vals.length ? vals : null;
+  });
+  const s = $('#onbStatus'); s.textContent = 'Saving…'; s.style.color = 'var(--grey)';
+  const { error } = await sb.from('client_onboarding').upsert(row, { onConflict:'client_id' });
+  if (error){ s.textContent = error.message; s.style.color = 'var(--bad)'; return; }
+  s.textContent = 'Saved.'; s.style.color = 'var(--good)';
+  onbCache = row;
+  setTimeout(()=>{ if (s && s.textContent==='Saved.') s.textContent=''; }, 2500);
 }
 
 function readFields(){

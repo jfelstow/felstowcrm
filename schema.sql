@@ -45,6 +45,70 @@ create table if not exists public.activities (
   created_at     timestamptz not null default now()
 );
 
+-- Onboarding answers: one row per client, mirrors felstowbookkeeping.com/onboarding.html
+create table if not exists public.client_onboarding (
+  client_id           uuid primary key references public.clients(id) on delete cascade,
+  -- 01 Business basics
+  legal_name          text,
+  dba                 text,
+  entity_type         text,
+  ein                 text,
+  state_formed        text,
+  date_started        date,
+  fiscal_year         text,
+  biz_address         text,
+  industry            text,
+  -- 02 Ownership & primary contact
+  owners              text,
+  contact_name        text,
+  contact_role        text,
+  contact_email       text,
+  contact_phone       text,
+  contact_pref        text,
+  -- 03 People & payroll
+  num_employees       integer,
+  num_contractors     integer,
+  payroll_provider    text,
+  payroll_frequency   text,
+  owner_pay           text,
+  -- 04 Bank accounts & credit cards
+  bank_accounts       text,
+  credit_cards        text,
+  personal_mixing     text,
+  -- 05 Loans & financing
+  loans               text,
+  -- 06 Business assets
+  vehicles            text,
+  other_assets        text,
+  -- 07 Payment platforms
+  platforms           text[],
+  venmo_paypal_type   text,
+  -- 08 Software & tools
+  has_qbo             text,
+  qbo_subscription    text,
+  other_tools         text,
+  receipts_handling   text,
+  -- 09 Access & credentials
+  access_needed       text[],
+  cred_method         text,
+  -- 10 Current state of the books
+  books_status        text,
+  last_reconciled     text,
+  last_tax_return     text,
+  has_cpa             text,
+  previous_bookkeeper text,
+  -- 11 Sales tax
+  sales_tax           text,
+  sales_tax_detail    text,
+  -- 12 Goals & anything else
+  top_goals           text,
+  pain_points         text,
+  anything_else       text,
+  -- meta
+  updated_at          timestamptz not null default now(),
+  updated_by          uuid references public.profiles(id)
+);
+
 -- Per-client grants: which contractor can touch which client.
 create table if not exists public.client_access (
   user_id   uuid not null references public.profiles(id) on delete cascade,
@@ -123,10 +187,11 @@ create trigger on_auth_user_created
 -- ─────────────────────────────────────────────────────────────
 -- Row Level Security
 -- ─────────────────────────────────────────────────────────────
-alter table public.profiles      enable row level security;
-alter table public.clients       enable row level security;
-alter table public.activities    enable row level security;
-alter table public.client_access enable row level security;
+alter table public.profiles          enable row level security;
+alter table public.clients           enable row level security;
+alter table public.activities        enable row level security;
+alter table public.client_access     enable row level security;
+alter table public.client_onboarding enable row level security;
 
 -- profiles: you can read your own; owner reads all. You can update your own name.
 drop policy if exists profiles_select on public.profiles;
@@ -171,6 +236,23 @@ drop policy if exists activities_delete on public.activities;
 create policy activities_delete on public.activities
   for delete using (public.can_edit_client(client_id));
 
+-- client_onboarding: access follows the parent client.
+drop policy if exists onboarding_select on public.client_onboarding;
+create policy onboarding_select on public.client_onboarding
+  for select using (public.can_access_client(client_id));
+
+drop policy if exists onboarding_insert on public.client_onboarding;
+create policy onboarding_insert on public.client_onboarding
+  for insert with check (public.can_edit_client(client_id));
+
+drop policy if exists onboarding_update on public.client_onboarding;
+create policy onboarding_update on public.client_onboarding
+  for update using (public.can_edit_client(client_id)) with check (public.can_edit_client(client_id));
+
+drop policy if exists onboarding_delete on public.client_onboarding;
+create policy onboarding_delete on public.client_onboarding
+  for delete using (public.can_edit_client(client_id));
+
 -- client_access: you can see your own grants; only owner manages grants.
 drop policy if exists client_access_select on public.client_access;
 create policy client_access_select on public.client_access
@@ -188,7 +270,7 @@ create policy client_access_manage on public.client_access
 -- ─────────────────────────────────────────────────────────────
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete
-  on public.clients, public.activities, public.client_access, public.profiles
+  on public.clients, public.activities, public.client_access, public.profiles, public.client_onboarding
   to authenticated;
 
 -- ─────────────────────────────────────────────────────────────

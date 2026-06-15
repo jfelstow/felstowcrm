@@ -1,0 +1,63 @@
+name: Supabase keep-alive
+
+# WHY THIS EXISTS:
+# Supabase free-tier projects are PAUSED after 7 days with no activity, which
+# takes the CRM's database offline. This workflow pings the Supabase REST API
+# once a day so the project never sits idle long enough to be paused.
+#
+# It reads the URL + anon key straight out of config.js, so there is a single
+# source of truth — if the project is ever recreated with a new ref, just
+# update config.js and this keeps working.
+#
+# The daily heartbeat commit also keeps THIS repo active, which stops GitHub
+# from auto-disabling scheduled workflows after 60 days of repo inactivity.
+
+on:
+  schedule:
+    - cron: "17 13 * * *"   # 13:17 UTC daily (~7-8am Central). Off-the-hour avoids GitHub's busy top-of-hour queue.
+  workflow_dispatch: {}       # also runnable on-demand from the Actions tab
+
+permissions:
+  contents: write             # needed to push the heartbeat commit
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Supabase URL + anon key from config.js
+        id: cfg
+        run: |
+          URL=$(grep -oE 'https://[a-z0-9]+\.supabase\.co' config.js | head -1)
+          KEY=$(grep 'SUPABASE_ANON_KEY' config.js | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::Could not parse SUPABASE_URL / SUPABASE_ANON_KEY out of config.js"
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Ping Supabase (keeps the project awake)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            -H "apikey: ${{ steps.cfg.outputs.key }}" \
+            "${{ steps.cfg.outputs.url }}/rest/v1/clients?select=id&limit=1")
+          echo "Supabase responded HTTP $code"
+          # Any HTTP code (200/206/401/404...) means the request REACHED the project = awake.
+          # "000" means no connection at all -> project is paused or deleted. Fail loudly so
+          # GitHub emails you, then restore it at https://supabase.com/dashboard
+          if [ "$code" = "000" ]; then
+            echo "::error::Supabase did not respond (HTTP 000). The project is likely paused or deleted — restore it at https://supabase.com/dashboard"
+            exit 1
+          fi
+
+      - name: Heartbeat (keeps this repo active so the schedule isn't auto-disabled)
+        run: |
+          date -u "+CRM keep-alive last ran: %Y-%m-%d %H:%M UTC" > keepalive.txt
+          git config user.name  "felstow-crm-keepalive"
+          git config user.email "actions@github.com"
+          git add keepalive.txt
+          git commit -m "chore: keep-alive heartbeat [skip ci]" || exit 0
+          git push

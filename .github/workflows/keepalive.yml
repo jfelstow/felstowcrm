@@ -24,7 +24,7 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Read Supabase URL + anon key from config.js
         id: cfg
@@ -41,9 +41,11 @@ jobs:
 
       - name: Ping Supabase (keeps the project awake)
         run: |
+          # `|| true` so a DNS/connection failure (curl exit != 0) doesn't abort the
+          # step before our friendly message below — curl still writes "000" via -w.
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
             -H "apikey: ${{ steps.cfg.outputs.key }}" \
-            "${{ steps.cfg.outputs.url }}/rest/v1/clients?select=id&limit=1")
+            "${{ steps.cfg.outputs.url }}/rest/v1/clients?select=id&limit=1" || true)
           echo "Supabase responded HTTP $code"
           # Any HTTP code (200/206/401/404...) means the request REACHED the project = awake.
           # "000" means no connection at all -> project is paused or deleted. Fail loudly so

@@ -416,7 +416,9 @@ async function saveClient(){
     ({ error: err } = await sb.from('clients').update(o).eq('id', openId));
   } else {
     o.created_by = me.id;
-    const { data, error } = await sb.from('clients').insert(o).select().single();
+    // Only read back the id — the financial columns are no longer SELECTable on the
+    // base table (locked to owner via clients_view), so select() would error.
+    const { data, error } = await sb.from('clients').insert(o).select('id').single();
     err = error; if (data) openId = data.id;
   }
   if (err){ alert(err.message); return; }

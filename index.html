@@ -46,6 +46,8 @@
       <div class="tabs">
         <button data-view="pipeline" class="on">Pipeline</button>
         <button data-view="followups">Follow-ups</button>
+        <button data-view="questions">Questions <span class="tab-badge hidden" id="qBadge">0</span></button>
+        <button data-view="team" class="owner-only">Team</button>
       </div>
       <span class="grow"></span>
       <select id="fStage"><option value="">All stages</option></select>
@@ -58,6 +60,8 @@
 
     <div id="pipelineView" class="panel"></div>
     <div id="followupsView" class="panel hidden"></div>
+    <div id="questionsView" class="panel hidden"></div>
+    <div id="teamView" class="panel hidden"></div>
   </div>
 </div>
 

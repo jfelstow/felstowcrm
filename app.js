@@ -144,10 +144,17 @@ async function loadClients(){
   if (error){ alert(error.message); return; }
   clients = data || [];
   render();
+  refreshQuestionBadge();
 }
 
 // ── Render ────────────────────────────────────────────
-function render(){ renderCards(); view==='pipeline' ? renderPipeline() : renderFollowups(); }
+function render(){
+  renderCards();
+  if (view==='pipeline')        renderPipeline();
+  else if (view==='followups')  renderFollowups();
+  else if (view==='questions')  renderQuestions();
+  else if (view==='team')       renderTeam();
+}
 
 function renderCards(){
   const mrr  = clients.filter(c=>c.status==='Active').reduce((a,c)=>a+(+c.monthly_value||0),0);
@@ -235,7 +242,7 @@ async function renderFollowups(){
 }
 
 // ── Drawer / detail ───────────────────────────────────
-function openDrawer(id){ openId=id; $('#scrim').classList.remove('hidden'); $('#drawer').classList.remove('hidden'); drawClient(); }
+function openDrawer(id, tab){ openId=id; $('#scrim').classList.remove('hidden'); $('#drawer').classList.remove('hidden'); drawClient(); if (tab) switchTab(tab); }
 function closeDrawer(){ openId=null; $('#scrim').classList.add('hidden'); $('#drawer').classList.add('hidden'); }
 
 function fieldSel(label,key,opts,val,blank=true){
@@ -254,21 +261,25 @@ async function drawClient(){
   $('#dTitle').textContent = c.name || 'New client';
   onbCache = null;
 
+  const pinned = openId ? `<div id="nextStepsBox" class="nextsteps"></div>` : '';
   const tabs = openId ? `
     <div class="dtabs">
       <button data-dt="details" class="on">Details</button>
       <button data-dt="onboarding">Onboarding</button>
       <button data-dt="activity">Activity</button>
+      <button data-dt="qa">Q&amp;A</button>
     </div>` : '';
 
-  $('#dBody').innerHTML = `${tabs}
+  $('#dBody').innerHTML = `${pinned}${tabs}
     <div id="dtDetails">${detailsTabHtml(c)}</div>
     <div id="dtOnboarding" class="hidden"></div>
-    <div id="dtActivity" class="hidden"></div>`;
+    <div id="dtActivity" class="hidden"></div>
+    <div id="dtQA" class="hidden"></div>`;
 
   $('#saveClient').onclick = saveClient;
   const del = $('#delClient'); if (del) del.onclick = deleteClient;
   $$('#dBody .dtabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.dt));
+  if (openId) loadNextSteps();
 }
 
 function switchTab(t){
@@ -276,8 +287,10 @@ function switchTab(t){
   $('#dtDetails').classList.toggle('hidden', t!=='details');
   $('#dtOnboarding').classList.toggle('hidden', t!=='onboarding');
   $('#dtActivity').classList.toggle('hidden', t!=='activity');
+  $('#dtQA').classList.toggle('hidden', t!=='qa');
   if (t==='onboarding' && !onbCache) loadOnboardingTab();
   if (t==='activity' && !$('#dtActivity').innerHTML.trim()) renderActivityTab();
+  if (t==='qa' && !$('#dtQA').innerHTML.trim()) renderQATab();
 }
 
 function detailsTabHtml(c){
@@ -419,19 +432,26 @@ async function deleteClient(){
 }
 
 async function loadActs(){
+  // Questions live in their own Q&A tab; keep them out of the general log.
   const { data, error } = await sb.from('activities').select('*')
-    .eq('client_id',openId).order('activity_date',{ascending:false});
+    .eq('client_id',openId).neq('type','Question').order('activity_date',{ascending:false});
   const el = $('#actList');
   if (error){ el.innerHTML=`<div class="sub">${esc(error.message)}</div>`; return; }
   if (!data.length){ el.innerHTML='<div class="sub">No activity yet.</div>'; return; }
-  el.innerHTML = data.map(a=>`<div class="act">
-    <div class="top"><span>${esc(a.type)} · ${a.activity_date}</span>
+  el.innerHTML = data.map(a=>`<div class="act ${a.done?'done':''}">
+    <div class="top">
+      <label class="act-done"><input type="checkbox" class="actDone" data-id="${a.id}" ${a.done?'checked':''}>
+        <span>${esc(a.type)} · ${a.activity_date}</span></label>
       <button class="x" data-del="${a.id}" title="Delete">&times;</button></div>
-    <div>${esc(a.note||'')}</div>
-    ${a.next_step?`<div class="nx">→ ${esc(a.next_step)}${a.follow_up_date?` (by ${a.follow_up_date})`:''}</div>`:''}
+    ${a.note?`<div class="actText">${esc(a.note)}</div>`:''}
+    ${a.next_step?`<div class="nx actText">→ ${esc(a.next_step)}${a.follow_up_date?` (by ${a.follow_up_date})`:''}</div>`:''}
   </div>`).join('');
+  $$('#actList .actDone').forEach(cb=>cb.onclick=async()=>{
+    await sb.from('activities').update({done:cb.checked}).eq('id',cb.dataset.id);
+    loadActs(); loadNextSteps(); if(view==='followups') renderFollowups();
+  });
   $$('#actList [data-del]').forEach(b=>b.onclick=async()=>{
-    await sb.from('activities').delete().eq('id',b.dataset.del); loadActs(); render();
+    await sb.from('activities').delete().eq('id',b.dataset.del); loadActs(); loadNextSteps(); render();
   });
 }
 
@@ -448,6 +468,203 @@ async function addActivity(){
   if (error){ alert(error.message); return; }
   ['a_note','a_next','a_follow'].forEach(k=>$(`#dBody [data-k="${k}"]`).value='');
   loadActs(); if(view==='followups') renderFollowups();
+}
+
+// ── Next steps (pinned checklist on each client) ──────
+async function loadNextSteps(){
+  const box = $('#nextStepsBox'); if (!box || !openId) return;
+  const { data, error } = await sb.from('activities')
+    .select('id,next_step,follow_up_date')
+    .eq('client_id',openId).eq('done',false).not('next_step','is',null)
+    .order('follow_up_date',{ascending:true,nullsFirst:false});
+  if (error){ box.innerHTML = `<div class="ns-head">📌 Next steps</div><div class="sub">${esc(error.message)}</div>`; return; }
+  const items = (data||[]).filter(a=>a.next_step && a.next_step.trim());
+  box.innerHTML = `
+    <div class="ns-head">📌 Next steps</div>
+    <div class="ns-list">${
+      items.length ? items.map(nsItemHtml).join('')
+                   : '<div class="sub ns-empty">Nothing open — add the next thing to do below.</div>'}</div>
+    <div class="ns-add">
+      <input id="nsInput" placeholder="Add a next step…" maxlength="300">
+      <button class="btn amber sm" id="nsAdd">Add</button>
+    </div>`;
+  $('#nsAdd').onclick = addNextStep;
+  $('#nsInput').onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); addNextStep(); } };
+  $$('#nextStepsBox .ns-check').forEach(cb=>cb.onchange=()=>completeNextStep(cb.dataset.id));
+}
+function nsItemHtml(a){
+  return `<label class="ns-item">
+    <input type="checkbox" class="ns-check" data-id="${a.id}">
+    <span class="ns-text">${esc(a.next_step)}</span>
+    ${a.follow_up_date?`<span class="ns-due">${a.follow_up_date}</span>`:''}
+  </label>`;
+}
+async function addNextStep(){
+  const inp = $('#nsInput'); const v = (inp.value||'').trim(); if(!v) return;
+  const { error } = await sb.from('activities').insert({
+    client_id:openId, type:'Task', activity_date:today(), next_step:v, created_by:me.id });
+  if (error){ alert(error.message); return; }
+  inp.value=''; loadNextSteps();
+  if (!$('#dtActivity').classList.contains('hidden')) loadActs();
+  if (view==='followups') renderFollowups();
+}
+async function completeNextStep(id){
+  const { error } = await sb.from('activities').update({done:true}).eq('id',id);
+  if (error){ alert(error.message); return; }
+  loadNextSteps();
+  if (!$('#dtActivity').classList.contains('hidden')) loadActs();
+  if (view==='followups') renderFollowups();
+}
+
+// ── Q&A (per-client tab) ──────────────────────────────
+function renderQATab(){
+  $('#dtQA').innerHTML = `
+    <div class="sec-h">Questions on this client</div>
+    <div id="qaList"><div class="sub">Loading…</div></div>
+    <div class="sec-h">Ask a question</div>
+    <div class="fld"><textarea id="qaInput" placeholder="Ask a question about this client…"></textarea></div>
+    <button class="btn amber" id="qaAsk">Ask</button>`;
+  $('#qaAsk').onclick = askQuestion;
+  loadQA();
+}
+async function loadQA(){
+  const { data, error } = await sb.from('activities').select('*')
+    .eq('client_id',openId).eq('type','Question')
+    .order('done',{ascending:true}).order('activity_date',{ascending:false});
+  const el = $('#qaList'); if (!el) return;
+  if (error){ el.innerHTML = `<div class="sub">${esc(error.message)}</div>`; return; }
+  if (!data.length){ el.innerHTML = '<div class="sub">No questions yet.</div>'; return; }
+  el.innerHTML = data.map(qaItemHtml).join('');
+  $$('#qaList [data-answer]').forEach(b=>b.onclick=()=>submitAnswer(b.dataset.answer));
+  $$('#qaList [data-resolve]').forEach(cb=>cb.onchange=async()=>{
+    await sb.from('activities').update({done:cb.checked}).eq('id',cb.dataset.resolve);
+    loadQA(); refreshQuestionBadge();
+  });
+}
+function qaItemHtml(a){
+  const answered = a.answer && String(a.answer).trim();
+  const state = a.done ? 'Resolved' : answered ? 'Answered' : 'Open';
+  const cls   = a.done ? 'r' : answered ? 'a' : 'o';
+  let block;
+  if (answered){
+    block = `<div class="qa-answer">💬 ${esc(a.answer)}</div>`;
+  } else if (me.role==='owner'){
+    block = `<div class="qa-answerbox">
+      <textarea data-ans-input="${a.id}" placeholder="Type your answer…"></textarea>
+      <button class="btn sm" data-answer="${a.id}">Answer</button></div>`;
+  } else {
+    block = `<div class="sub qa-waiting">Waiting for an answer…</div>`;
+  }
+  return `<div class="qa-item ${a.done?'resolved':''}">
+    <div class="qa-q"><span class="qa-badge ${cls}">${state}</span>${esc(a.note||'')}</div>
+    <div class="qa-meta sub">${a.activity_date}</div>
+    ${block}
+    <label class="qa-resolve sub"><input type="checkbox" data-resolve="${a.id}" ${a.done?'checked':''}> Resolved</label>
+  </div>`;
+}
+async function askQuestion(){
+  const t = $('#qaInput'); const v = (t.value||'').trim(); if(!v) return;
+  const { error } = await sb.from('activities').insert({
+    client_id:openId, type:'Question', activity_date:today(), note:v, created_by:me.id });
+  if (error){ alert(error.message); return; }
+  t.value=''; loadQA(); refreshQuestionBadge();
+}
+async function submitAnswer(id){
+  const ta = $(`#qaList [data-ans-input="${id}"]`); const v = (ta.value||'').trim(); if(!v) return;
+  const { error } = await sb.from('activities')
+    .update({ answer:v, answered_at:new Date().toISOString(), answered_by:me.id }).eq('id',id);
+  if (error){ alert(error.message); return; }
+  loadQA(); refreshQuestionBadge();
+}
+
+// ── Questions (global view + tab badge) ───────────────
+async function renderQuestions(){
+  const el = $('#questionsView');
+  const ids = clients.map(c=>c.id);
+  if (!ids.length){ el.innerHTML = `<div class="empty">No clients yet.</div>`; return; }
+  const { data, error } = await sb.from('activities').select('*')
+    .eq('type','Question').in('client_id',ids)
+    .order('done',{ascending:true}).order('activity_date',{ascending:false});
+  if (error){ el.innerHTML = `<div class="empty">${esc(error.message)}</div>`; return; }
+  if (!data.length){ el.innerHTML = `<div class="empty">No questions yet. Open a client → Q&amp;A to ask one.</div>`; return; }
+  const byId = Object.fromEntries(clients.map(c=>[c.id,c]));
+  el.innerHTML = data.map(a=>{
+    const c = byId[a.client_id]||{};
+    const answered = a.answer && String(a.answer).trim();
+    const state = a.done ? 'Resolved' : answered ? 'Answered' : 'Open';
+    const cls   = a.done ? 'r' : answered ? 'a' : 'o';
+    return `<div class="qrow ${a.done?'resolved':''}" data-id="${a.client_id}">
+      <div class="qrow-main">
+        <div><span class="qa-badge ${cls}">${state}</span><b>${esc(c.name||'')}</b> — ${esc(a.note||'')}</div>
+        ${answered?`<div class="qrow-ans sub">💬 ${esc(a.answer)}</div>`:''}
+      </div>
+      <div class="sub">${a.activity_date}</div>
+    </div>`;
+  }).join('');
+  $$('#questionsView .qrow').forEach(r=>r.onclick=()=>openDrawer(r.dataset.id,'qa'));
+}
+async function refreshQuestionBadge(){
+  const ids = clients.map(c=>c.id);
+  if (!ids.length){ setQBadge(0); return; }
+  const { count, error } = await sb.from('activities')
+    .select('id',{count:'exact',head:true})
+    .eq('type','Question').eq('done',false).in('client_id',ids);
+  if (error) return;
+  setQBadge(count||0);
+}
+function setQBadge(n){
+  const b = $('#qBadge'); if(!b) return;
+  b.textContent = n; b.classList.toggle('hidden', !n);
+}
+
+// ── Team access (owner-only) ──────────────────────────
+async function renderTeam(){
+  const el = $('#teamView');
+  if (me.role!=='owner'){ el.innerHTML = `<div class="empty">Owners only.</div>`; return; }
+  const { data:profs, error } = await sb.from('profiles')
+    .select('id,full_name,role').neq('role','owner').order('full_name');
+  if (error){ el.innerHTML = `<div class="empty">${esc(error.message)}</div>`; return; }
+  if (!profs.length){
+    el.innerHTML = `<div class="empty">No contractors yet.<br><span class="sub">Add one in Supabase → Authentication → Add user, then refresh.</span></div>`;
+    return;
+  }
+  const opts = profs.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)}</option>`).join('');
+  el.innerHTML = `<div class="team-wrap">
+      <div class="fld"><label>Contractor</label><select id="teamSel">${opts}</select></div>
+      <div id="teamGrid"><div class="sub">Loading…</div></div>
+    </div>
+    <div class="team-hint">Check <b>Access</b> to let this person see a client; <b>Can edit</b> lets them log activity, check off next steps, and ask questions. Changes save instantly.</div>`;
+  $('#teamSel').onchange = ()=>loadTeamGrid($('#teamSel').value);
+  loadTeamGrid(profs[0].id);
+}
+async function loadTeamGrid(uid){
+  const grid = $('#teamGrid'); grid.innerHTML = '<div class="sub">Loading…</div>';
+  const { data:acc, error } = await sb.from('client_access').select('client_id,can_edit').eq('user_id',uid);
+  if (error){ grid.innerHTML = `<div class="sub">${esc(error.message)}</div>`; return; }
+  const accMap = Object.fromEntries((acc||[]).map(a=>[a.client_id,a]));
+  const all = [...clients].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if (!all.length){ grid.innerHTML = '<div class="sub">No clients to assign yet.</div>'; return; }
+  grid.innerHTML = `<table><thead><tr><th>Client</th><th>Access</th><th>Can edit</th></tr></thead><tbody>
+    ${all.map(c=>{
+      const a = accMap[c.id]; const has = !!a; const edit = a ? a.can_edit : false;
+      return `<tr><td>${esc(c.name)}</td>
+        <td><input type="checkbox" class="tAcc"  data-c="${c.id}" ${has?'checked':''}></td>
+        <td><input type="checkbox" class="tEdit" data-c="${c.id}" ${edit?'checked':''} ${has?'':'disabled'}></td></tr>`;
+    }).join('')}
+  </tbody></table>`;
+  $$('#teamGrid .tAcc').forEach(cb=>cb.onchange=()=>toggleAccess(uid,cb.dataset.c,cb.checked));
+  $$('#teamGrid .tEdit').forEach(cb=>cb.onchange=()=>setCanEdit(uid,cb.dataset.c,cb.checked));
+}
+async function toggleAccess(uid,cid,on){
+  const { error } = on
+    ? await sb.from('client_access').upsert({user_id:uid,client_id:cid,can_edit:true},{onConflict:'user_id,client_id'})
+    : await sb.from('client_access').delete().eq('user_id',uid).eq('client_id',cid);
+  if (error){ alert(error.message); }
+  loadTeamGrid(uid);
+}
+async function setCanEdit(uid,cid,on){
+  const { error } = await sb.from('client_access').update({can_edit:on}).eq('user_id',uid).eq('client_id',cid);
+  if (error){ alert(error.message); }
 }
 
 // ── Static wiring ─────────────────────────────────────
@@ -467,8 +684,13 @@ function wireStatic(){
   $$('.tabs button').forEach(b=>b.onclick=()=>{
     view=b.dataset.view;
     $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
-    $('#pipelineView').classList.toggle('hidden',view!=='pipeline');
-    $('#followupsView').classList.toggle('hidden',view!=='followups');
+    ['pipeline','followups','questions','team'].forEach(v=>{
+      const node=$('#'+v+'View'); if(node) node.classList.toggle('hidden', view!==v);
+    });
+    const onPipe = view==='pipeline';
+    $('#fStage').classList.toggle('hidden',!onPipe);
+    $('#fStatus').classList.toggle('hidden',!onPipe);
+    $('#addClient').classList.toggle('hidden', !(onPipe && me.role==='owner'));
     render();
   });
 }

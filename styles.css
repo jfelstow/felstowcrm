@@ -140,6 +140,69 @@ tbody tr:hover{background:var(--bg-soft)}
 .fu .meta{flex:1}
 .fu .meta b{color:var(--navy)}
 
+/* ── Questions tab badge ── */
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
+  padding:0 5px;border-radius:9px;background:var(--amber);color:#fff;font-size:10.5px;font-weight:700;
+  margin-left:5px;vertical-align:middle}
+.tabs button.on .tab-badge{background:#fff;color:var(--navy)}
+
+/* ── Pinned Next Steps (per client, top of drawer) ── */
+.nextsteps{border:1px solid var(--hair);border-radius:11px;background:var(--bg-soft);
+  padding:12px 14px;margin-bottom:16px}
+.ns-head{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);
+  font-weight:700;margin-bottom:8px}
+.ns-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.ns-empty{padding:2px 0}
+.ns-item{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:var(--ink);
+  cursor:pointer;margin:0;padding:5px 8px;background:var(--bg);border:1px solid var(--hair);border-radius:8px}
+.ns-item input{margin:2px 0 0;width:auto;padding:0;flex:none}
+.ns-item .ns-text{flex:1}
+.ns-item .ns-due{font-size:11.5px;color:var(--amber-2);white-space:nowrap}
+.ns-add{display:flex;gap:7px;align-items:center}
+.ns-add input{margin:0}
+
+/* ── Activity check-off ── */
+.act.done{opacity:.6}
+.act.done .actText{text-decoration:line-through;color:var(--grey)}
+.act-done{display:inline-flex;align-items:center;gap:7px;margin:0;cursor:pointer}
+.act-done input{margin:0;width:auto;padding:0}
+.act .ans{margin-top:6px;padding:7px 9px;background:#eef3fa;border-radius:8px;font-size:12.5px;color:var(--navy)}
+
+/* ── Q&A (per client + global) ── */
+.qa-item{border:1px solid var(--hair);border-radius:10px;padding:11px 12px;margin-bottom:9px;background:var(--bg)}
+.qa-item.resolved{opacity:.6}
+.qa-q{font-size:13.5px;color:var(--ink);margin-bottom:4px}
+.qa-meta{margin-bottom:7px}
+.qa-badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:700;
+  margin-right:7px;vertical-align:middle}
+.qa-badge.o{background:#fdebd3;color:var(--amber-2)}
+.qa-badge.a{background:#e4f3ea;color:var(--good)}
+.qa-badge.r{background:#eef0f2;color:var(--grey)}
+.qa-answer{padding:8px 10px;background:#eef3fa;border-radius:8px;font-size:13px;color:var(--navy)}
+.qa-answerbox textarea{min-height:54px;margin-bottom:7px}
+.qa-resolve{display:inline-flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer}
+.qa-resolve input{margin:0;width:auto;padding:0}
+.qa-waiting{margin-top:4px;font-style:italic}
+
+/* global Questions list */
+.qrow{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;
+  padding:12px 14px;border-bottom:1px solid var(--hair);cursor:pointer}
+.qrow:last-child{border-bottom:none}
+.qrow:hover{background:var(--bg-soft)}
+.qrow.resolved{opacity:.55}
+.qrow-main{flex:1}
+.qrow-main b{color:var(--navy)}
+.qrow-ans{margin-top:5px}
+
+/* ── Team access panel ── */
+.team-wrap{padding:16px}
+.team-wrap .fld{max-width:320px}
+#teamGrid table{margin-top:4px}
+#teamGrid th:nth-child(2),#teamGrid th:nth-child(3),
+#teamGrid td:nth-child(2),#teamGrid td:nth-child(3){text-align:center;width:90px}
+#teamGrid input{width:auto;margin:0;padding:0;cursor:pointer}
+.team-hint{padding:0 16px 14px;color:var(--grey);font-size:12.5px}
+
 @media (max-width:760px){
   .cards{grid-template-columns:1fr 1fr}
   .grid2{grid-template-columns:1fr}

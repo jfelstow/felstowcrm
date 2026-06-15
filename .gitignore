@@ -1,2 +1,4 @@
 .DS_Store
 .claude/
+# Client PII — never push to the public repo. Run locally in the Supabase SQL editor.
+seed-clients.sql

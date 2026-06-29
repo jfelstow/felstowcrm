@@ -39,19 +39,38 @@ jobs:
           echo "::add-mask::$KEY"
           echo "key=$KEY" >> "$GITHUB_OUTPUT"
 
-      - name: Ping Supabase (keeps the project awake)
+      - name: Ping Supabase keepalive RPC (a REAL DB write = real activity)
         run: |
-          # `|| true` so a DNS/connection failure (curl exit != 0) doesn't abort the
-          # step before our friendly message below — curl still writes "000" via -w.
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+          # We call the public.keepalive() RPC, NOT a table read. A plain anon
+          # read of /rest/v1/clients returns HTTP 401 (anon has no table grant)
+          # and is rejected BEFORE touching the database, so it does NOT reset
+          # Supabase's inactivity timer — that is exactly why the project paused
+          # on 2026-06-23 despite green runs. The RPC performs a genuine write.
+          #
+          # `|| true` so a DNS/connection failure (curl exit != 0) doesn't abort
+          # the step before our friendly messages below — curl still emits the
+          # http_code (000) via -w.
+          resp=$(curl -s -w $'\n%{http_code}' --max-time 30 \
+            -X POST \
             -H "apikey: ${{ steps.cfg.outputs.key }}" \
-            "${{ steps.cfg.outputs.url }}/rest/v1/clients?select=id&limit=1" || true)
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${{ steps.cfg.outputs.url }}/rest/v1/rpc/keepalive" || true)
+          code=$(printf '%s' "$resp" | tail -1)
+          body=$(printf '%s' "$resp" | sed '$d')
           echo "Supabase responded HTTP $code"
-          # Any HTTP code (200/206/401/404...) means the request REACHED the project = awake.
-          # "000" means no connection at all -> project is paused or deleted. Fail loudly so
-          # GitHub emails you, then restore it at https://supabase.com/dashboard
+          echo "Body: $body"
+          # "000" = no connection at all -> project is paused or deleted.
           if [ "$code" = "000" ]; then
-            echo "::error::Supabase did not respond (HTTP 000). The project is likely paused or deleted — restore it at https://supabase.com/dashboard"
+            echo "::error::Supabase did not respond (HTTP 000). The project is likely paused or deleted — restore it at https://supabase.com/dashboard/project/hqrjgstphobxfsvlvmik"
+            exit 1
+          fi
+          # Anything other than 200 means the write did NOT happen (e.g. 404 =
+          # migration-keepalive.sql not applied; 401/403 = anon missing EXECUTE).
+          # A non-200 ping does NOT reset the timer, so fail loudly rather than
+          # silently logging a useless "success" like the old version did.
+          if [ "$code" != "200" ]; then
+            echo "::error::keepalive RPC returned HTTP $code (expected 200). The ping did NOT write to the DB, so the inactivity timer was NOT reset. Ensure migration-keepalive.sql has been run and anon has EXECUTE on public.keepalive()."
             exit 1
           fi
 

@@ -151,6 +151,7 @@ async function loadClients(){
 function render(){
   renderCards();
   if (view==='pipeline')        renderPipeline();
+  else if (view==='monthend')   renderMonthEnd();
   else if (view==='followups')  renderFollowups();
   else if (view==='questions')  renderQuestions();
   else if (view==='team')       renderTeam();
@@ -518,6 +519,88 @@ async function completeNextStep(id){
   if (view==='followups') renderFollowups();
 }
 
+// ── Month-End board ───────────────────────────────────
+const MS_FIELDS = [['books_coded','Books coded'],['reconciled','Reconciled'],['report_drafted','Report drafted'],['report_sent','Report sent']];
+const MS_CYCLE  = ['not_started','in_progress','done','na'];
+const MS_LABEL  = {not_started:'—', in_progress:'In progress', done:'Done', na:'n/a'};
+let msMonth = null;        // 'YYYY-MM-01'
+let msRows  = {};          // client_id → status row for the shown month
+
+function monthISO(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; }
+function prevMonthISO(){ const n=new Date(); return monthISO(new Date(n.getFullYear(), n.getMonth()-1, 1)); }
+function shiftMonth(iso, delta){ const [y,m]=iso.split('-').map(Number); return monthISO(new Date(y, m-1+delta, 1)); }
+
+async function renderMonthEnd(){
+  const el = $('#monthendView');
+  if (!msMonth) msMonth = prevMonthISO();   // the goal is "previous month closed"
+  const active = clients.filter(c=>c.status==='Active').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if (!active.length){ el.innerHTML = `<div class="empty">No active clients.</div>`; return; }
+  const { data, error } = await sb.from('client_month_status').select('*')
+    .eq('month', msMonth).in('client_id', active.map(c=>c.id));
+  if (error){
+    const missing = error.code==='PGRST205' || error.code==='42P01' || /client_month_status/.test(error.message||'');
+    el.innerHTML = `<div class="empty">${missing
+      ? 'Month-End board isn’t set up yet — run <b>migration-month-status.sql</b> in the Supabase SQL editor, then refresh.'
+      : esc(error.message)}</div>`;
+    return;
+  }
+  msRows = Object.fromEntries((data||[]).map(r=>[r.client_id,r]));
+  const label = new Date(msMonth+'T12:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  el.innerHTML = `
+    <div class="ms-nav">
+      <button class="btn ghost sm" id="msPrev">&lsaquo;</button>
+      <div class="ms-month">${label}</div>
+      <button class="btn ghost sm" id="msNext">&rsaquo;</button>
+    </div>
+    <div class="ms-scroll"><table><thead><tr>
+      <th>Client</th>${MS_FIELDS.map(f=>`<th>${f[1]}</th>`).join('')}<th>Blocker</th>
+    </tr></thead><tbody>
+    ${active.map(c=>{
+      const r = msRows[c.id]||{};
+      return `<tr>
+        <td class="ms-client" data-open="${c.id}"><div class="name-cell">${esc(c.name)}</div></td>
+        ${MS_FIELDS.map(([k])=>{
+          const v = r[k]||'not_started';
+          return `<td><button class="ms-chip s-${v}" data-c="${c.id}" data-k="${k}" title="Click to change">${MS_LABEL[v]}</button></td>`;
+        }).join('')}
+        <td class="ms-blocker" data-blk="${c.id}" title="Click to edit">${
+          r.blocker ? `<span class="ms-blk ${r.blocked_on==='client'?'on-client':'on-jake'}">${esc(r.blocker)}</span>`
+                    : '<span class="sub">—</span>'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>
+    <div class="team-hint">Click a status to cycle it (— &rarr; In progress &rarr; Done &rarr; n/a). Click the blocker cell to edit. Statuses also update automatically when bookkeeping workflows run.</div>`;
+  $('#msPrev').onclick = ()=>{ msMonth = shiftMonth(msMonth,-1); renderMonthEnd(); };
+  $('#msNext').onclick = ()=>{ msMonth = shiftMonth(msMonth, 1); renderMonthEnd(); };
+  $$('#monthendView .ms-client').forEach(td=>td.onclick=()=>openDrawer(td.dataset.open));
+  $$('#monthendView .ms-chip').forEach(b=>b.onclick=()=>cycleMs(b.dataset.c, b.dataset.k));
+  $$('#monthendView .ms-blocker').forEach(td=>td.onclick=()=>editBlocker(td.dataset.blk));
+}
+async function msUpsert(cid, patch){
+  const { error } = await sb.from('client_month_status').upsert(
+    { client_id:cid, month:msMonth, ...patch, updated_by:me.id },
+    { onConflict:'client_id,month' });
+  if (error){ alert(error.message); return false; }
+  return true;
+}
+async function cycleMs(cid, k){
+  const cur  = (msRows[cid]&&msRows[cid][k]) || 'not_started';
+  const next = MS_CYCLE[(MS_CYCLE.indexOf(cur)+1) % MS_CYCLE.length];
+  if (await msUpsert(cid, {[k]:next})) renderMonthEnd();
+}
+async function editBlocker(cid){
+  const cur = msRows[cid]||{};
+  const v = prompt('Blocker (leave empty to clear):', cur.blocker||'');
+  if (v===null) return;
+  let on = 'none';
+  if (v.trim()){
+    const w = prompt('Blocked on: client or jake?', cur.blocked_on==='client'?'client':'jake');
+    if (w===null) return;
+    on = /^c/i.test(w||'') ? 'client' : 'jake';
+  }
+  if (await msUpsert(cid, {blocker:v.trim()||null, blocked_on:on})) renderMonthEnd();
+}
+
 // ── Q&A (per-client tab) ──────────────────────────────
 function renderQATab(){
   $('#dtQA').innerHTML = `
@@ -686,7 +769,7 @@ function wireStatic(){
   $$('.tabs button').forEach(b=>b.onclick=()=>{
     view=b.dataset.view;
     $$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
-    ['pipeline','followups','questions','team'].forEach(v=>{
+    ['pipeline','monthend','followups','questions','team'].forEach(v=>{
       const node=$('#'+v+'View'); if(node) node.classList.toggle('hidden', view!==v);
     });
     const onPipe = view==='pipeline';

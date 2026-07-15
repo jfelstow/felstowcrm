@@ -78,6 +78,20 @@ To revoke: `delete from public.client_access where ...` the same pair.
 - Click any client to edit details and **log activity** — set a *Next step + Follow-up date* so it shows in the **Follow-ups** tab.
 - Stage auto-sets status: Signed/Onboarding/Active Client → **Active** (counts toward MRR); Lost/Dormant accordingly; everything else → **Prospect**.
 
+## Month-End board (added 2026-07-15)
+
+The **Month-End** tab tracks each Active client's progress for a month: Books
+coded → Reconciled → Report drafted → Report sent, plus a blocker. One-time
+setup: run `migration-month-status.sql` in the Supabase **SQL Editor** (until
+then the tab shows a "not set up yet" notice). Click a status chip to cycle it;
+click the blocker cell to edit. Contractors see the board for their granted
+clients (no financial columns involved).
+
+The board is also written automatically: the `client-next-steps` skill does the
+full sweep, and the bookkeeping skills log status as they run, all through
+`~/.claude/skills/client-next-steps/scripts/crm-status.js` (owner auth via the
+`felstow-crm` Keychain item).
+
 ## Notes
 - The "Active MRR" card sums `monthly_value` of Active clients; "Pipeline value" sums Prospects.
 - Contractors can edit clients/activities they're granted; only the owner can add or delete clients and manage access — all enforced in the database, not just the UI.
